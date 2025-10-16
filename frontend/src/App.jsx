@@ -3,6 +3,7 @@ import axios from 'axios'
 import ModeSelector from './components/ModeSelector'
 import GameSetup from './components/GameSetup'
 import GameTable from './components/GameTable'
+import BlackJack3D from './components/BlackJack3D'
 import BettingArea from './components/BettingArea'
 import RoomSetup from './components/RoomSetup'
 import RoomLobby from './components/RoomLobby'
@@ -16,6 +17,7 @@ function App() {
   const [playerData, setPlayerData] = useState(null)
   const [gameData, setGameData] = useState(null)
   const [roomCode, setRoomCode] = useState(null)
+  const [view3D, setView3D] = useState(false)
 
   useEffect(() => {
     if (gameId && gameState !== 'setup' && gameMode === 'solo') {
@@ -104,6 +106,18 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {/* Toggle 3D */}
+      {(gameState === 'playing' || gameState === 'betting') && gameMode === 'solo' && (
+        <button
+          onClick={() => setView3D(!view3D)}
+          className="fixed top-4 left-4 z-[999] bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-full font-bold shadow-2xl hover:scale-110 transition-transform flex items-center gap-2"
+          style={{ animation: 'float 3s ease-in-out infinite' }}
+        >
+          <span className="text-2xl">{view3D ? '🎮' : '🎲'}</span>
+          <span>{view3D ? 'Modo 2D' : 'Modo 3D'}</span>
+        </button>
+      )}
+
       {gameState === 'mode-select' && (
         <ModeSelector onSelectMode={handleModeSelect} />
       )}
@@ -146,14 +160,27 @@ function App() {
       )}
       
       {gameState === 'playing' && gameMode === 'solo' && gameData && (
-        <GameTable 
-          gameId={gameId}
-          playerId={playerId}
-          gameData={gameData}
-          playerData={playerData}
-          onNewRound={handleNewRound}
-          onGameStateUpdate={fetchGameState}
-        />
+        <>
+          {view3D ? (
+            <BlackJack3D
+              gameId={gameId}
+              playerId={playerId}
+              gameData={gameData}
+              playerData={playerData}
+              onNewRound={handleNewRound}
+              onGameStateUpdate={fetchGameState}
+            />
+          ) : (
+            <GameTable 
+              gameId={gameId}
+              playerId={playerId}
+              gameData={gameData}
+              playerData={playerData}
+              onNewRound={handleNewRound}
+              onGameStateUpdate={fetchGameState}
+            />
+          )}
+        </>
       )}
     </div>
   )
