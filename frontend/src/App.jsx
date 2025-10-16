@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import GameSelector from './components/GameSelector'
 import ModeSelector from './components/ModeSelector'
 import GameSetup from './components/GameSetup'
 import GameTable from './components/GameTable'
@@ -8,9 +9,13 @@ import BettingArea from './components/BettingArea'
 import RoomSetup from './components/RoomSetup'
 import RoomLobby from './components/RoomLobby'
 import MultiplayerGame from './components/MultiplayerGame'
+import UNORoomSetup from './components/uno/UNORoomSetup'
+import UNORoomLobby from './components/uno/UNORoomLobby'
+import UNOGameTable from './components/uno/UNOGameTable'
 
 function App() {
-  const [gameState, setGameState] = useState('mode-select')
+  const [gameState, setGameState] = useState('game-select')
+  const [selectedGame, setSelectedGame] = useState(null)
   const [gameMode, setGameMode] = useState(null)
   const [gameId, setGameId] = useState(null)
   const [playerId, setPlayerId] = useState(null)
@@ -47,12 +52,24 @@ function App() {
     }
   }
 
+  const handleGameSelect = (game) => {
+    setSelectedGame(game)
+    setGameState('mode-select')
+  }
+
   const handleModeSelect = (mode) => {
     setGameMode(mode)
-    if (mode === 'solo') {
-      setGameState('setup')
+    
+    // UNO só tem modo online (multiplayer)
+    if (selectedGame === 'uno') {
+      setGameState('uno-room-setup')
     } else {
-      setGameState('room-setup')
+      // Black Jack tem solo e online
+      if (mode === 'solo') {
+        setGameState('setup')
+      } else {
+        setGameState('room-setup')
+      }
     }
   }
 
@@ -70,12 +87,34 @@ function App() {
     setGameState('room-lobby')
   }
 
+  const handleUNORoomCreated = (newRoomCode, newPlayerId, player) => {
+    setRoomCode(newRoomCode)
+    setPlayerId(newPlayerId)
+    setPlayerData(player)
+    setGameState('uno-room-lobby')
+  }
+
   const handleGameStart = () => {
     setGameState('multiplayer-game')
   }
 
+  const handleUNOGameStart = () => {
+    setGameState('uno-game')
+  }
+
   const handleBackToModeSelect = () => {
     setGameState('mode-select')
+    setGameMode(null)
+    setGameId(null)
+    setPlayerId(null)
+    setPlayerData(null)
+    setGameData(null)
+    setRoomCode(null)
+  }
+
+  const handleBackToGameSelect = () => {
+    setGameState('game-select')
+    setSelectedGame(null)
     setGameMode(null)
     setGameId(null)
     setPlayerId(null)
@@ -106,8 +145,8 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Toggle 3D */}
-      {(gameState === 'playing' || gameState === 'betting') && gameMode === 'solo' && (
+      {/* Toggle 3D - apenas para Black Jack */}
+      {(gameState === 'playing' || gameState === 'betting') && gameMode === 'solo' && selectedGame === 'blackjack' && (
         <button
           onClick={() => setView3D(!view3D)}
           className="fixed top-4 left-4 z-[999] bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-full font-bold shadow-2xl hover:scale-110 transition-transform flex items-center gap-2"
@@ -118,8 +157,16 @@ function App() {
         </button>
       )}
 
+      {gameState === 'game-select' && (
+        <GameSelector onSelectGame={handleGameSelect} />
+      )}
+
       {gameState === 'mode-select' && (
-        <ModeSelector onSelectMode={handleModeSelect} />
+        <ModeSelector 
+          onSelectMode={handleModeSelect} 
+          onBack={handleBackToGameSelect}
+          gameType={selectedGame}
+        />
       )}
 
       {gameState === 'setup' && (
@@ -181,6 +228,31 @@ function App() {
             />
           )}
         </>
+      )}
+
+      {/* UNO Components */}
+      {gameState === 'uno-room-setup' && (
+        <UNORoomSetup 
+          onRoomCreated={handleUNORoomCreated}
+          onBack={handleBackToModeSelect}
+        />
+      )}
+
+      {gameState === 'uno-room-lobby' && (
+        <UNORoomLobby 
+          roomCode={roomCode}
+          playerId={playerId}
+          onGameStart={handleUNOGameStart}
+          onLeave={handleBackToModeSelect}
+        />
+      )}
+
+      {gameState === 'uno-game' && (
+        <UNOGameTable 
+          roomCode={roomCode}
+          playerId={playerId}
+          onBackToLobby={() => setGameState('uno-room-lobby')}
+        />
       )}
     </div>
   )

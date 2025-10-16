@@ -3,6 +3,7 @@ const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const Game = require('./game/Game');
 const Room = require('./game/Room');
+const UNORoom = require('./uno/Room');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -12,6 +13,7 @@ app.use(express.json());
 
 const games = new Map();
 const rooms = new Map();
+const unoRooms = new Map();
 
 function generateRoomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -477,6 +479,250 @@ app.post('/api/room/:roomCode/reset', (req, res) => {
     message: 'Jogo reiniciado',
     roomState: room.getRoomState()
   });
+});
+
+// ==================== ROTAS UNO ====================
+
+// Criar sala de UNO
+app.post('/api/uno/room/create', (req, res) => {
+  const { playerName } = req.body;
+  
+  let roomCode;
+  do {
+    roomCode = generateRoomCode();
+  } while (unoRooms.has(roomCode));
+  
+  const room = new UNORoom(roomCode);
+  const playerId = uuidv4();
+  
+  try {
+    const player = room.addPlayer(playerId, playerName || 'Jogador');
+    unoRooms.set(roomCode, room);
+    
+    res.json({ 
+      roomCode, 
+      playerId,
+      player: player.toJSON(),
+      roomState: room.getRoomState()
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Entrar em sala de UNO
+app.post('/api/uno/room/:roomCode/join', (req, res) => {
+  const { roomCode } = req.params;
+  const { playerName } = req.body;
+  
+  const room = unoRooms.get(roomCode);
+  if (!room) {
+    return res.status(404).json({ error: 'Sala não encontrada' });
+  }
+  
+  const playerId = uuidv4();
+  
+  try {
+    const player = room.addPlayer(playerId, playerName || 'Jogador');
+    
+    res.json({ 
+      playerId,
+      player: player.toJSON(),
+      roomState: room.getRoomState()
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Sair da sala de UNO
+app.post('/api/uno/room/:roomCode/leave', (req, res) => {
+  const { roomCode } = req.params;
+  const { playerId } = req.body;
+  
+  const room = unoRooms.get(roomCode);
+  if (!room) {
+    return res.status(404).json({ error: 'Sala não encontrada' });
+  }
+  
+  room.removePlayer(playerId);
+  
+  // Se não houver mais jogadores, remove a sala
+  if (room.players.length === 0) {
+    unoRooms.delete(roomCode);
+    return res.json({ message: 'Sala removida' });
+  }
+  
+  res.json({ 
+    message: 'Saiu da sala',
+    roomState: room.getRoomState()
+  });
+});
+
+// Marcar jogador como pronto
+app.post('/api/uno/room/:roomCode/ready', (req, res) => {
+  const { roomCode } = req.params;
+  const { playerId, ready } = req.body;
+  
+  const room = unoRooms.get(roomCode);
+  if (!room) {
+    return res.status(404).json({ error: 'Sala não encontrada' });
+  }
+  
+  room.setPlayerReady(playerId, ready !== false);
+  
+  res.json({ 
+    message: ready !== false ? 'Pronto' : 'Não pronto',
+    roomState: room.getRoomState()
+  });
+});
+
+// Iniciar jogo de UNO
+app.post('/api/uno/room/:roomCode/start', (req, res) => {
+  const { roomCode } = req.params;
+  
+  const room = unoRooms.get(roomCode);
+  if (!room) {
+    return res.status(404).json({ error: 'Sala não encontrada' });
+  }
+  
+  try {
+    room.startGame();
+    
+    res.json({ 
+      message: 'Jogo iniciado',
+      roomState: room.getRoomState()
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Obter estado da sala
+app.get('/api/uno/room/:roomCode/state', (req, res) => {
+  const { roomCode } = req.params;
+  const { playerId } = req.query;
+  
+  const room = unoRooms.get(roomCode);
+  if (!room) {
+    return res.status(404).json({ error: 'Sala não encontrada' });
+  }
+  
+  if (playerId) {
+    res.json(room.getPlayerView(playerId));
+  } else {
+    res.json(room.getRoomState());
+  }
+});
+
+// Jogar uma carta
+app.post('/api/uno/room/:roomCode/play', (req, res) => {
+  const { roomCode } = req.params;
+  const { playerId, cardIndex, chosenColor } = req.body;
+  
+  const room = unoRooms.get(roomCode);
+  if (!room) {
+    return res.status(404).json({ error: 'Sala não encontrada' });
+  }
+  
+  try {
+    const result = room.playCard(playerId, cardIndex, chosenColor);
+    
+    res.json({ 
+      ...result,
+      roomState: room.getPlayerView(playerId)
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Comprar uma carta
+app.post('/api/uno/room/:roomCode/draw', (req, res) => {
+  const { roomCode } = req.params;
+  const { playerId } = req.body;
+  
+  const room = unoRooms.get(roomCode);
+  if (!room) {
+    return res.status(404).json({ error: 'Sala não encontrada' });
+  }
+  
+  try {
+    const result = room.drawCard(playerId);
+    
+    res.json({ 
+      ...result,
+      roomState: room.getPlayerView(playerId)
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Gritar UNO
+app.post('/api/uno/room/:roomCode/uno', (req, res) => {
+  const { roomCode } = req.params;
+  const { playerId } = req.body;
+  
+  const room = unoRooms.get(roomCode);
+  if (!room) {
+    return res.status(404).json({ error: 'Sala não encontrada' });
+  }
+  
+  try {
+    const success = room.sayUno(playerId);
+    
+    res.json({ 
+      success,
+      message: success ? 'UNO!' : 'Você precisa ter apenas 1 carta',
+      roomState: room.getPlayerView(playerId)
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Passar a vez
+app.post('/api/uno/room/:roomCode/pass', (req, res) => {
+  const { roomCode } = req.params;
+  const { playerId } = req.body;
+  
+  const room = unoRooms.get(roomCode);
+  if (!room) {
+    return res.status(404).json({ error: 'Sala não encontrada' });
+  }
+  
+  try {
+    const result = room.passTurn(playerId);
+    
+    res.json({ 
+      ...result,
+      roomState: room.getPlayerView(playerId)
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Reiniciar jogo de UNO
+app.post('/api/uno/room/:roomCode/restart', (req, res) => {
+  const { roomCode } = req.params;
+  
+  const room = unoRooms.get(roomCode);
+  if (!room) {
+    return res.status(404).json({ error: 'Sala não encontrada' });
+  }
+  
+  try {
+    const roomState = room.restartGame();
+    
+    res.json({ 
+      message: 'Jogo reiniciado',
+      roomState
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
 setInterval(() => {

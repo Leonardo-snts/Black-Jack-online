@@ -1,8 +1,25 @@
-function ModeSelector({ onSelectMode }) {
+function ModeSelector({ onSelectMode, onBack, gameType = 'blackjack' }) {
+  const isUNO = gameType === 'uno'
+  
+  // Se for UNO, vai direto para online
+  if (isUNO) {
+    onSelectMode('online')
+    return null
+  }
+
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
       <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-4xl border border-slate-700">
         <div className="text-center mb-8">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="mb-4 text-slate-400 hover:text-white transition-colors flex items-center gap-2 mx-auto"
+            >
+              <span>←</span>
+              <span>Voltar para seleção de jogo</span>
+            </button>
+          )}
           <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-600 mb-4">
             BLACK JACK
           </h1>
